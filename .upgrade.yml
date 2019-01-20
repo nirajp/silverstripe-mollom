@@ -1,0 +1,3 @@
+mappings:
+  MollomField: Salveo\Mollom\formfields\MollomField
+  MollomSpamProtector: Salveo\Mollom\MollomSpamProtector

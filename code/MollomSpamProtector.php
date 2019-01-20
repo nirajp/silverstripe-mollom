@@ -1,9 +1,15 @@
 <?php
 
+use SilverStripe\Core\Config\Config;
+use SilverStripe\Dev\SapphireInfo;
+use SilverStripe\SpamProtection\SpamProtector;
+use Salveo\Mollom\formfields\MollomField;
+
+
 require_once(BASE_PATH . '/vendor/mollom/client/mollom.class.inc');
 
 /**
- * A customized version of {@link Mollom} to run on SilverStripe. See the 
+ * A customized version of {@link Mollom} to run on SilverStripe. See the
  * MollomPHP page (https://github.com/mollom/MollomPHP) for more information
  * about the abstracted methods.
  *
@@ -11,7 +17,7 @@ require_once(BASE_PATH . '/vendor/mollom/client/mollom.class.inc');
  */
 
 class MollomSpamProtector extends Mollom implements SpamProtector {
-	
+
 	/**
 	 * @var array
 	 */
@@ -26,11 +32,11 @@ class MollomSpamProtector extends Mollom implements SpamProtector {
 	);
 
 	/**
-	 * Load configuration for a given variable such as privateKey. Since 
-	 * SilverStripe uses YAML conventions, look for those variables 
+	 * Load configuration for a given variable such as privateKey. Since
+	 * SilverStripe uses YAML conventions, look for those variables
 	 *
 	 * @param string $name
-	 * 
+	 *
 	 * @return mixed
 	 */
 	public function loadConfiguration($name) {
@@ -48,7 +54,7 @@ class MollomSpamProtector extends Mollom implements SpamProtector {
 	public function saveConfiguration($name, $value) {
 		return Config::inst()->update('Mollom', $this->configurationMap[$name], $value);
 	}
-	
+
 	/**
 	 * Delete a configuration value.
 	 *
@@ -60,14 +66,14 @@ class MollomSpamProtector extends Mollom implements SpamProtector {
 	public function deleteConfiguration($name) {
 		return $this->saveConfiguration($name, null);
 	}
-	
+
 	/**
 	 * Helper for Mollom to know this current client instance.
 	 *
 	 * @return array
 	 */
 	public function getClientInformation() {
-		$info = new SapphireInfo(); 
+		$info = new SapphireInfo();
 		$useragent = 'SilverStripe/' . $info->Version();
 
 		$data = array(
@@ -80,8 +86,8 @@ class MollomSpamProtector extends Mollom implements SpamProtector {
 		return $data;
 	}
 
-	/** 
-	 * Send the request to Mollom. Must return the result in the format 
+	/**
+	 * Send the request to Mollom. Must return the result in the format
 	 * prescribed by the Mollom base class.
 	 *
 	 * @param string $method
@@ -91,7 +97,7 @@ class MollomSpamProtector extends Mollom implements SpamProtector {
 	 * @param array $headers
 	 */
 	protected function request($method, $server, $path, $query = NULL, array $headers = array()) {
-		// if the user has turned on debug mode in the Config API, change the 
+		// if the user has turned on debug mode in the Config API, change the
 		// server to the dev version
 		if(Config::inst()->get('Mollom', 'dev')) {
 			$server = 'http://' . 'dev.mollom.com' . '/' . Mollom::API_VERSION;
@@ -108,14 +114,14 @@ class MollomSpamProtector extends Mollom implements SpamProtector {
 
 		// Compose the Mollom endpoint URL.
 		$url = $server . '/' . $path;
-		
+
 		if (isset($query) && $method == 'GET') {
 			$url .= '?' . $query;
 		}
-		
+
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-		
+
 		// Prevent API calls from taking too long.
 		// Under normal operations, API calls may time out for Mollom users without
 		// a paid subscription.
@@ -143,7 +149,7 @@ class MollomSpamProtector extends Mollom implements SpamProtector {
 			$raw_response_headers = explode("\n", $raw_response_headers);
 			$message = array_shift($raw_response_headers);
 			$response_headers = array();
-			
+
 			foreach ($raw_response_headers as $line) {
 				list($name, $value) = explode(': ', $line, 2);
 				// Mollom::handleRequest() expects response header names in lowercase.
@@ -173,13 +179,13 @@ class MollomSpamProtector extends Mollom implements SpamProtector {
 
 	/**
 	 * Return the Field that we will use in this protector.
-	 * 
+	 *
 	 * @param string $name
 	 * @param string $title
 	 * @param mixed $value
 	 * @return MollomField
 	 */
-	public function getFormField($name = "MollomField", $title = "Captcha", $value = null) {		
+	public function getFormField($name = MollomField::class, $title = "Captcha", $value = null) {
 		$field = new MollomField($name, $title, $value);
 		$field->setFieldMapping($this->fieldMapping);
 		return $field;

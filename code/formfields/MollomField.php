@@ -1,21 +1,31 @@
 <?php
 
+use SilverStripe\View\Requirements;
+use SilverStripe\Control\Session;
+use SilverStripe\Security\Permission;
+use SilverStripe\Security\Member;
+use SilverStripe\Core\Config\Config;
+use SilverStripe\Core\Injector\Injector;
+use SilverStripe\Forms\FormField;
+use Salveo\Mollom\MollomSpamProtector;
+
+
 /**
  * Mollom Form Field.
  *
- * The {@link FormField} which is inserted into your form fields via the 
+ * The {@link FormField} which is inserted into your form fields via the
  * spam protector class.
  *
  * @package mollom
  */
 
 class MollomField extends FormField {
-	
+
 	/**
 	 * @var array
 	 */
 	private $fieldMapping = array();
-	
+
 	/**
 	 * @var string
 	 */
@@ -27,18 +37,18 @@ class MollomField extends FormField {
 	 * @see setAlwaysShowCaptcha
 	 */
 	private static $always_show_captcha = false;
-	
+
 	/**
 	 * @config
 	 *
 	 * @see setForceCheckOnMembers
 	 */
 	private static $force_check_on_members = false;
-	
+
 	/**
 	 * @var string
 	 */
-	protected $template = 'MollomField';
+	protected $template = MollomField::class;
 
 	/**
 	 * @return string
@@ -69,10 +79,10 @@ class MollomField extends FormField {
 
 		return null;
 	}
-	
+
 	/**
 	 * Set the captcha type. Mollom supports "image" and "audio" types.
-	 * 
+	 *
 	 * @return void
 	 */
 	public function setCaptchaType($Type) {
@@ -80,17 +90,17 @@ class MollomField extends FormField {
 			$this->captchaType = $Type;
 		}
 	}
-	
+
 	/**
 	 * Returns the captcha type that has been set. Default is "image".
-	 * 
+	 *
 	 * @return string
 	 */
 	public function getCaptchaType() {
 		return $this->captchaType;
 	}
-	
-	
+
+
 
 	/**
 	 * Determines if the current user is exempt from spam detection
@@ -105,7 +115,7 @@ class MollomField extends FormField {
 		}
 
 		// Allow logged in members to bypass captcha if allowed
-		if (Member::currentUser() && !Config::inst()->get('MollomField', 'force_check_on_members')) {
+		if (Member::currentUser() && !Config::inst()->get(MollomField::class, 'force_check_on_members')) {
 			return true;
 		}
 
@@ -114,16 +124,16 @@ class MollomField extends FormField {
 
 	/**
 	 * Return if we should show the captcha to the user.
-	 * 
+	 *
 	 * @return boolean
 	 */
 	public function getShowCaptcha() {
-		
+
 		// If this user is eligible to bypass spam detection, don't show them the recaptcha
 		if($this->exemptUser()) return false;
-		
+
 		// Show captcha if always requested
-		if (Config::inst()->get('MollomField', 'always_show_captcha')) return true;
+		if (Config::inst()->get(MollomField::class, 'always_show_captcha')) return true;
 
 		// If a captcha is requested then we need to redisplay it to the user
 		if (Session::get('mollom_captcha_requested')) return true;
@@ -131,10 +141,10 @@ class MollomField extends FormField {
 		// If there are no field mappings, then the captcha is mandatory
 		return empty($this->fieldMapping);
 	}
-	
+
 	/**
 	 * Returns the field label if showing captcha - used by templates.
-	 * 
+	 *
 	 * @return string Title if field is showing the captcha
 	 */
 	public function Title() {
@@ -142,13 +152,13 @@ class MollomField extends FormField {
 			return parent::Title();
 		}
 	}
-	
+
 	/**
 	 * @return MollomSpamProtector
 	 */
 	public function getMollom() {
 		if(!$this->_mollom) {
-			$this->_mollom  = Injector::inst()->create('MollomSpamProtector');
+			$this->_mollom  = Injector::inst()->create(MollomSpamProtector::class);
 			$this->_mollom ->publicKey = Config::inst()->get('Mollom', 'public_key');
 			$this->_mollom ->privateKey = Config::inst()->get('Mollom', 'private_key');
 
@@ -159,13 +169,13 @@ class MollomField extends FormField {
 
 		return $this->_mollom;
 	}
-	
+
 	/**
 	 * @return array
 	 */
 	public function getSpamMappedData() {
 		if(empty($this->fieldMapping)) return null;
-		
+
 		$result = array();
 		$data = $this->form->getData();
 
@@ -184,13 +194,13 @@ class MollomField extends FormField {
 	 * @return boolean
 	 */
 	public function validate($validator) {
-		
+
 		// Bypass spam detection for eligible users
 		if($this->exemptUser()) {
 			$this->clearMollomSession();
 			return true;
 		}
-		
+
 		$session_id = Session::get("mollom_session_id");
 		$mapped = $this->getSpamMappedData();
 		$data = array();
@@ -216,14 +226,14 @@ class MollomField extends FormField {
 					return true;
 				} else {
 					$this->requestMollom();
-					
+
 					$validator->validationError(
-						$this->name, 
+						$this->name,
 						_t(
-							'MollomCaptchaField.CAPTCHAREQUESTED', 
+							'MollomCaptchaField.CAPTCHAREQUESTED',
 							"Please answer the captcha question",
 							"Mollom Captcha provides words in an image, and expects a user to type them in a textfield"
-						), 
+						),
 						"warning"
 					);
 
@@ -244,7 +254,7 @@ class MollomField extends FormField {
 			}
 
 			$result = $this->getMollom()->checkContent($data);
-			
+
 			// Mollom can do much more useful things.
 			// @todo handle profanityScore, qualityScore, sentimentScore, reason
 			if(is_array($result)) {
@@ -253,34 +263,34 @@ class MollomField extends FormField {
 						$this->clearMollomSession();
 
 						return true;
-				
+
 					case 'unsure':
 						$this->requestMollom();
 
 						// we're unsure so request the captcha.
 						$validator->validationError(
-							$this->name, 
+							$this->name,
 							_t(
-								'MollomCaptchaField.CAPTCHAREQUESTED', 
+								'MollomCaptchaField.CAPTCHAREQUESTED',
 								"Please answer the captcha question",
 								"Mollom Captcha provides words in an image, and expects a user to type them in a textfield"
-							), 
+							),
 							"warning"
 						);
 
 						return false;
-					
+
 					case 'spam':
 						$this->clearMollomSession();
 						$this->requestMollom();
 
 						$validator->validationError(
-							$this->name, 
+							$this->name,
 							_t(
-								'MollomCaptchaField.SPAM', 
+								'MollomCaptchaField.SPAM',
 								"Your submission has been rejected because it was treated as spam.",
 								"Mollom Captcha provides words in an image, and expects a user to type them in a textfield"
-							), 
+							),
 							"error"
 						);
 
@@ -289,10 +299,10 @@ class MollomField extends FormField {
 				}
 			}
 		}
-		
+
 		return true;
 	}
-	
+
 	/**
 	 * @return void
 	 */
@@ -301,7 +311,7 @@ class MollomField extends FormField {
 	}
 
 	/**
-	 * Helper to quickly clear all the mollom session settings. For example 
+	 * Helper to quickly clear all the mollom session settings. For example
 	 * after a successful post.
 	 *
 	 * @return void
